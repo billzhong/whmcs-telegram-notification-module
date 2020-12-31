@@ -1,6 +1,6 @@
 <?php
 
-namespace WHMCS\Module\Notification\SampleNotificationModule;
+namespace WHMCS\Module\Notification\TelegramNotificationModule;
 
 use WHMCS\Module\Notification\DescriptionTrait;
 use WHMCS\Module\Contracts\NotificationModuleInterface;
@@ -11,7 +11,7 @@ use WHMCS\Notification\Contracts\NotificationInterface;
  *
  * All notification modules must implement NotificationModuleInterface
  */
-class SampleNotificationModule implements NotificationModuleInterface
+class Telegram implements NotificationModuleInterface
 {
     use DescriptionTrait;
 
@@ -30,7 +30,7 @@ class SampleNotificationModule implements NotificationModuleInterface
      */
     public function __construct()
     {
-        $this->setDisplayName('Sample Notification Module')
+        $this->setDisplayName('Telegram Notification Module')
             ->setLogoFileName('logo.png');
     }
 

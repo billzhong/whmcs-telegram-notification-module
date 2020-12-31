@@ -1,12 +1,13 @@
 {
-  "name": "whmcs/sample-notification-module",
-  "description": "Sample Notification Module for the WHMCS Billing Automation Platform",
+  "name": "billzhong/whmcs-telegram-notification-module",
+  "description": "Telegram Notification Module for the WHMCS Billing Automation Platform",
   "keywords": [
     "whmcs",
     "web host automation platform",
-    "notification module"
+    "notification module",
+    "telegram"
   ],
-  "homepage": "https://www.whmcs.com/",
+  "homepage": "https://github.com/billzhong/whmcs-telegram-notification-module",
   "license": "MIT",
   "authors": [
     {
@@ -14,11 +15,14 @@
       "email": "development@whmcs.com",
       "homepage": "https://www.whmcs.com/",
       "role": "Developer"
+    },
+    {
+      "name": "billzhong",
+      "homepage": "https://github.com/billzhong"
     }
   ],
   "support": {
-    "email": "support@whmcs.com",
-    "forum": "https://whmcs.community/",
-    "wiki": "https://docs.whmcs.com/"
+    "forum": "https://github.com/billzhong/whmcs-telegram-notification-module/discussions",
+    "wiki": "https://github.com/billzhong/whmcs-telegram-notification-module/wiki"
   }
 }
