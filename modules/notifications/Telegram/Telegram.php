@@ -1,13 +1,13 @@
 <?php
 
-namespace WHMCS\Module\Notification\TelegramNotificationModule;
+namespace WHMCS\Module\Notification\Telegram;
 
 use WHMCS\Module\Notification\DescriptionTrait;
 use WHMCS\Module\Contracts\NotificationModuleInterface;
 use WHMCS\Notification\Contracts\NotificationInterface;
 
 /**
- * Sample Notification Module
+ * Telegram Notification Module
  *
  * All notification modules must implement NotificationModuleInterface
  */
@@ -22,7 +22,7 @@ class Telegram implements NotificationModuleInterface
      * logo filename at the ready.  Therefore it is recommend to ensure these
      * values are set during object instantiation.
      *
-     * The sample notification module utilizes the DescriptionTrait which
+     * The telegram notification module utilizes the DescriptionTrait which
      * provides methods to fulfill this requirement.
      *
      * @see \WHMCS\Module\Notification\DescriptionTrait::setDisplayName()
@@ -56,16 +56,11 @@ class Telegram implements NotificationModuleInterface
     public function settings()
     {
         return [
-            'api_username' => [
-                'FriendlyName' => 'API Username',
+            'botToken' => [
+                'FriendlyName' => 'Telegram Bot API Token',
                 'Type' => 'text',
-                'Description' => 'Required username to authenticate with message service',
-            ],
-            'api_password' => [
-                'FriendlyName' => 'API Password',
-                'Type' => 'password',
-                'Description' => 'Required password to authenticate with message service',
-            ],
+                'Description' => 'You can create token at <a target="_blank" href="https://t.me/BotFather">BotFather</a>',
+            ]
         ];
     }
 
@@ -86,12 +81,17 @@ class Telegram implements NotificationModuleInterface
      */
     public function testConnection($settings)
     {
-        // Check to ensure both api_username and api_password were provided
-        if (empty($settings['api_username']) || empty($settings['api_password'])) {
-            throw new \Exception('API Login Failed. Please check your credentials input and try again.');
+        // Check to ensure bot token were provided and valid
+        if (empty($settings['botToken']) || strpos($settings['botToken'], ':') === false) {
+            throw new \Exception('Token is empty or invalid, please check and try again.');
         }
 
         // Perform API call here to validate the supplied API username and password.
+        $client = new \GuzzleHttp\Client();
+        $response = $client->request('GET', "https://api.telegram.org/bot{$settings['botToken']}/getUpdates");
+        if ($response->getStatusCode() !== 200) {
+            throw new \Exception((string)$response->getBody());
+        }
         // Return an exception if the connection fails.
     }
 
@@ -109,18 +109,12 @@ class Telegram implements NotificationModuleInterface
     public function notificationSettings()
     {
         return [
-            'botname' => [
-                'FriendlyName' => 'Bot Name',
+            'chatID' => [
+                'FriendlyName' => 'Telegram Chat ID',
                 'Type' => 'text',
-                'Description' => 'Define the name of your notification bot.',
+                'Description' => 'You can get it from @GetIDsBot or @RawDataBot',
                 'Required' => true,
-            ],
-            'channel' => [
-                'FriendlyName' => 'Channel',
-                'Type' => 'dynamic',
-                'Description' => 'Select the desired channel for notification delivery.',
-                'Required' => true,
-            ],
+            ]
         ];
     }
 
@@ -136,22 +130,22 @@ class Telegram implements NotificationModuleInterface
      */
     public function getDynamicField($fieldName, $settings)
     {
-        if ($fieldName == 'channel') {
-            return [
-                'values' => [
-                    [
-                        'id'          => 1,
-                        'name'        => 'Tech Support',
-                        'description' => 'Channel ID',
-                    ],
-                    [
-                        'id'          => 2,
-                        'name'        => 'Customer Service',
-                        'description' => 'Channel ID',
-                    ],
-                ],
-            ];
-        }
+//        if ($fieldName == 'channel') {
+//            return [
+//                'values' => [
+//                    [
+//                        'id'          => 1,
+//                        'name'        => 'Tech Support',
+//                        'description' => 'Channel ID',
+//                    ],
+//                    [
+//                        'id'          => 2,
+//                        'name'        => 'Customer Service',
+//                        'description' => 'Channel ID',
+//                    ],
+//                ],
+//            ];
+//        }
 
         return [];
     }
@@ -178,34 +172,43 @@ class Telegram implements NotificationModuleInterface
      */
     public function sendNotification(NotificationInterface $notification, $moduleSettings, $notificationSettings)
     {
-        if (!$notificationSettings['channel']) {
+        if (!$notificationSettings['chatID']) {
             // Abort the Notification.
-            throw new \Exception('No channel selected for notification delivery.');
+            throw new \Exception('No chat ID for notification delivery.');
         }
 
-        $notificationData = [
-            'channel'                 => $notificationSettings['channel'],
-            'notification_title'      => $notification->getTitle(),
-            'notification_url'        => $notification->getUrl(),
-            'notification_message'    => $notification->getMessage(),
-            'notification_attributes' => [],
-        ];
-
-        foreach ($notification->getAttributes() as $attribute) {
-            $notificationData['notification_attributes'][] = [
-                'label' => $attribute->getLabel(),
-                'value' => $attribute->getValue(),
-                'url'   => $attribute->getUrl(),
-                'style' => $attribute->getStyle(),
-                'icon'  => $attribute->getIcon(),
-            ];
-        }
+//        $notificationData = [
+//            'notification_title'      => $notification->getTitle(),
+//            'notification_url'        => $notification->getUrl(),
+//            'notification_message'    => $notification->getMessage(),
+//            'notification_attributes' => [],
+//        ];
+//
+//        foreach ($notification->getAttributes() as $attribute) {
+//            $notificationData['notification_attributes'][] = [
+//                'label' => $attribute->getLabel(),
+//                'value' => $attribute->getValue(),
+//                'url'   => $attribute->getUrl(),
+//                'style' => $attribute->getStyle(),
+//                'icon'  => $attribute->getIcon(),
+//            ];
+//        }
 
         // Perform API call to your notification provider.
+        $client = new \GuzzleHttp\Client();
+        $response = $client->request('POST', "https://api.telegram.org/bot{$moduleSettings['botToken']}/sendMessage", [
+            'http_errors' => false,
+            'form_params' => [
+                'chat_id' => $notificationSettings['chatID'],
+                'text' => "<b>{$notification->getTitle()}</b>\n\n{$notification->getMessage()}\n\n{$notification->getUrl()}",
+                'parse_mode' => 'HTML',
+                'disable_web_page_preview' => true,
+            ]
+        ]);
 
-        if (array_key_exists('error', $response)) {
+        if ($response->getStatusCode() !== 200) {
             // The API returned an error. Perform an action and abort the Notification.
-            throw new \Exception('Notification delivery failed.');
+            throw new \Exception((string)$response->getBody());
         }
     }
 }
