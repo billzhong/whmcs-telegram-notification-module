@@ -88,7 +88,7 @@ class Telegram implements NotificationModuleInterface
 
         // Perform API call here to validate the supplied API username and password.
         $client = new \GuzzleHttp\Client();
-        $response = $client->request('GET', "https://api.telegram.org/bot{$settings['botToken']}/getUpdates");
+        $response = $client->request('GET', "https://api.telegram.org/bot{$settings['botToken']}/getMe");
         if ($response->getStatusCode() !== 200) {
             throw new \Exception((string)$response->getBody());
         }
@@ -194,13 +194,17 @@ class Telegram implements NotificationModuleInterface
 //            ];
 //        }
 
+        $title = $this->escapeHtml($notification->getTitle());
+        $message = $this->escapeHtml($notification->getMessage());
+        $url = $this->escapeHtml($notification->getUrl());
+
         // Perform API call to your notification provider.
         $client = new \GuzzleHttp\Client();
         $response = $client->request('POST', "https://api.telegram.org/bot{$moduleSettings['botToken']}/sendMessage", [
             'http_errors' => false,
             'form_params' => [
                 'chat_id' => $notificationSettings['chatID'],
-                'text' => "<b>{$notification->getTitle()}</b>\n\n{$notification->getMessage()}\n\n{$notification->getUrl()}",
+                'text' => "<b>{$title}</b>\n\n{$message}\n\n{$url}",
                 'parse_mode' => 'HTML',
                 'disable_web_page_preview' => true,
             ]
@@ -210,5 +214,25 @@ class Telegram implements NotificationModuleInterface
             // The API returned an error. Perform an action and abort the Notification.
             throw new \Exception((string)$response->getBody());
         }
+    }
+
+    /**
+     * Escape text for Telegram's HTML parse mode
+     *
+     * WHMCS may pass values that are already HTML-encoded (e.g. "&amp;" or
+     * "&#039;"), so decode them first to avoid double-encoding, then escape
+     * the characters Telegram requires: &, < and >.
+     *
+     * @see https://core.telegram.org/bots/api#html-style
+     *
+     * @param string $text
+     *
+     * @return string
+     */
+    private function escapeHtml($text)
+    {
+        $text = html_entity_decode((string)$text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return htmlspecialchars($text, ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
