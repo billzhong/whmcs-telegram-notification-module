@@ -165,16 +165,18 @@ class Telegram implements NotificationModuleInterface
      * @param array $moduleSettings Configured settings of the notification module
      * @param array $notificationSettings Configured notification settings set by the triggered rule
      *
-     * @throws \Exception on error of sending notification
+     * Errors are logged (Module Log / Activity Log) instead of thrown, so a
+     * Telegram outage cannot break the WHMCS action that triggered it.
      *
      * @see https://classdocs.whmcs.com/7.8/WHMCS/Notification/Contracts/NotificationInterface.html
      * @see https://classdocs.whmcs.com/7.8/WHMCS/Notification/Contracts/NotificationAttributeInterface.html
      */
     public function sendNotification(NotificationInterface $notification, $moduleSettings, $notificationSettings)
     {
-        if (!$notificationSettings['chatID']) {
-            // Abort the Notification.
-            throw new \Exception('No chat ID for notification delivery.');
+        if (empty($notificationSettings['chatID'])) {
+            // Abort the Notification without breaking the current WHMCS request.
+            $this->logError([], 'No chat ID for notification delivery.', $moduleSettings);
+            return;
         }
 
 //        $notificationData = [
@@ -198,21 +200,50 @@ class Telegram implements NotificationModuleInterface
         $message = $this->escapeHtml($notification->getMessage());
         $url = $this->escapeHtml($notification->getUrl());
 
-        // Perform API call to your notification provider.
-        $client = new \GuzzleHttp\Client();
-        $response = $client->request('POST', "https://api.telegram.org/bot{$moduleSettings['botToken']}/sendMessage", [
-            'http_errors' => false,
-            'form_params' => [
-                'chat_id' => $notificationSettings['chatID'],
-                'text' => "<b>{$title}</b>\n\n{$message}\n\n{$url}",
-                'parse_mode' => 'HTML',
-                'disable_web_page_preview' => true,
-            ]
-        ]);
+        $request = [
+            'chat_id' => $notificationSettings['chatID'],
+            'text' => "<b>{$title}</b>\n\n{$message}\n\n{$url}",
+            'parse_mode' => 'HTML',
+            'disable_web_page_preview' => true,
+        ];
 
-        if ($response->getStatusCode() !== 200) {
-            // The API returned an error. Perform an action and abort the Notification.
-            throw new \Exception((string)$response->getBody());
+        // Notifications are sent synchronously from WHMCS hooks (e.g. when an
+        // admin replies to a ticket). An uncaught exception here aborts the
+        // whole request, so a Telegram outage or rate limit (HTTP 429) must
+        // never break WHMCS: log the failure and return instead of throwing.
+        try {
+            $client = new \GuzzleHttp\Client();
+            $response = $client->request('POST', "https://api.telegram.org/bot{$moduleSettings['botToken']}/sendMessage", [
+                'http_errors' => false,
+                'connect_timeout' => 5,
+                'timeout' => 10,
+                'form_params' => $request,
+            ]);
+
+            if ($response->getStatusCode() !== 200) {
+                $this->logError($request, (string)$response->getBody(), $moduleSettings);
+            }
+        } catch (\Throwable $e) {
+            $this->logError($request, $e->getMessage(), $moduleSettings);
+        }
+    }
+
+    /**
+     * Record a failed delivery without interrupting WHMCS
+     *
+     * @param array $request
+     * @param string $error
+     * @param array $moduleSettings
+     */
+    private function logError(array $request, $error, $moduleSettings)
+    {
+        $hide = empty($moduleSettings['botToken']) ? [] : [$moduleSettings['botToken']];
+
+        if (function_exists('logModuleCall')) {
+            logModuleCall('Telegram', 'sendMessage', $request, $error, '', $hide);
+        }
+        if (function_exists('logActivity')) {
+            logActivity('Telegram notification failed: ' . str_replace($hide, '***', $error));
         }
     }
 
