@@ -87,8 +87,7 @@ class Telegram implements NotificationModuleInterface
         }
 
         // Perform API call here to validate the supplied API username and password.
-        $client = new \GuzzleHttp\Client();
-        $response = $client->request('GET', "https://api.telegram.org/bot{$settings['botToken']}/getMe");
+        $response = $this->callApi($settings['botToken'], 'getMe');
         if ($response->getStatusCode() !== 200) {
             throw new \Exception((string)$response->getBody());
         }
@@ -207,18 +206,8 @@ class Telegram implements NotificationModuleInterface
             'disable_web_page_preview' => true,
         ];
 
-        // Notifications are sent synchronously from WHMCS hooks (e.g. when an
-        // admin replies to a ticket). An uncaught exception here aborts the
-        // whole request, so a Telegram outage or rate limit (HTTP 429) must
-        // never break WHMCS: log the failure and return instead of throwing.
         try {
-            $client = new \GuzzleHttp\Client();
-            $response = $client->request('POST', "https://api.telegram.org/bot{$moduleSettings['botToken']}/sendMessage", [
-                'http_errors' => false,
-                'connect_timeout' => 5,
-                'timeout' => 10,
-                'form_params' => $request,
-            ]);
+            $response = $this->callApi($moduleSettings['botToken'], 'sendMessage', $request);
 
             if ($response->getStatusCode() !== 200) {
                 $this->logError($request, (string)$response->getBody(), $moduleSettings);
@@ -226,6 +215,29 @@ class Telegram implements NotificationModuleInterface
         } catch (\Throwable $e) {
             $this->logError($request, $e->getMessage(), $moduleSettings);
         }
+    }
+
+    /**
+     * Call a Telegram Bot API method
+     *
+     * Requests run synchronously inside WHMCS page loads, so keep timeouts short.
+     *
+     * @param string $token
+     * @param string $method
+     * @param array $params
+     *
+     * @return \Psr\Http\Message\ResponseInterface
+     */
+    private function callApi($token, $method, array $params = [])
+    {
+        $client = new \GuzzleHttp\Client();
+
+        return $client->request('POST', "https://api.telegram.org/bot{$token}/{$method}", [
+            'http_errors' => false,
+            'connect_timeout' => 3,
+            'timeout' => 5,
+            'form_params' => $params,
+        ]);
     }
 
     /**
@@ -239,12 +251,8 @@ class Telegram implements NotificationModuleInterface
     {
         $hide = empty($moduleSettings['botToken']) ? [] : [$moduleSettings['botToken']];
 
-        if (function_exists('logModuleCall')) {
-            logModuleCall('Telegram', 'sendMessage', $request, $error, '', $hide);
-        }
-        if (function_exists('logActivity')) {
-            logActivity('Telegram notification failed: ' . str_replace($hide, '***', $error));
-        }
+        logModuleCall('Telegram', 'sendMessage', $request, $error, '', $hide);
+        logActivity('Telegram notification failed: ' . str_replace($hide, '***', $error));
     }
 
     /**
